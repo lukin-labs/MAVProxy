@@ -4,6 +4,12 @@ This is a MAVLink ground station written in python.
 
 Please see http://ardupilot.github.io/MAVProxy/ for more information
 
+Jetson TX1 with Pixhawk
+-------
+
+mavproxy.py --master=/dev/ttyTHS1 --baudrate=921600 --load-module=llcamera
+
+
 This ground station was developed as part of the CanberraUAV OBC team
 entry
 
