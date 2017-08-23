@@ -20,6 +20,9 @@ import errno
 import time
 import gphoto2 as gp
 import subprocess
+import time
+import datetime
+#import mavproxy.sc_ExifWriter as exifWriter
 
 from MAVProxy.modules.lib import mp_module
 from MAVProxy.modules.lib import mp_util
@@ -44,7 +47,23 @@ class llcamera(mp_module.MPModule):
         self.add_command('llcamera', self.cmd_example, "llcamera module", ['status','set (LOGSETTING)'])
 	self.context = gp.gp_context_new()
 	self.camera = gp.check_result(gp.gp_camera_new())
+	self.path = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
+	self.targetPath = os.path.join('/home/ubuntu/Pictures', self.path)
+	self.vehicleLat = 0.0              # Current Vehicle Latitude
+        self.vehicleLon = 0.0              # Current Vehicle Longitude
+        self.vehicleHdg = 0.0              # Current Vehicle Heading
+        self.vehicleAMSL = 0.0             # Current Vehicle Altitude above mean sea level
 
+        self.vehicleRoll = 0.0              # Current Vehicle Roll
+        self.vehiclePitch = 0.0              # Current Vehicle Pitch
+	self.vehicleYaw = 0.0
+	self.imageLogFilePath = os.path.join(self.targetPath, 'log_' + self.path + '.txt')
+	print(self.imageLogFilePath)
+	if not os.path.exists(self.targetPath):
+    		os.makedirs(self.targetPath)
+		file = open(self.imageLogFilePath, 'w') 
+		file.write('Filename\tLatitude\tLongitude\tAlt (AMSL)\tRoll\tPitch\tYaw\n')
+		file.close()
 	while True:
 		try:
 			self.camera.init(self.context)
@@ -109,14 +128,23 @@ class llcamera(mp_module.MPModule):
                 self.packets_mytarget += 1
             else:
                 self.packets_othertarget += 1
+	    (self.vehicleLat, self.vehicleLon, self.vehicleHdg, self.vehicleAMSL) = (m.lat*1.0e-7, m.lon*1.0e-7, m.hdg*0.01, m.alt*0.001)
+	#if mtype == "ATTITUDE":
+	    (self.vehicleRoll, self.vehiclePitch, self.vehicleYaw) = (math.degrees(m.roll), math.degrees(m.pitch), math.degrees(m.yaw))
 	if m.get_type() == "CAMERA_STATUS":
 		print ("Got Message camera_status")
 	if m.get_type() == "CAMERA_FEEDBACK":
 		print ("Got Message camera_feedback")
 		'''self.__vCmdCamTrigger(m)'''	
 		file_path = gp.check_result(gp.gp_camera_capture(self.camera, gp.GP_CAPTURE_IMAGE, self.context))
+
+		geotagFile = open(self.imageLogFilePath, 'a')
+		params = "%s\t%f\t%f\t%f\t%f\t%f\t%f\n" % (file_path.name, self.vehicleLat, self.vehicleLon, self.vehicleAMSL, self.vehicleRoll, self.vehiclePitch, self.vehicleYaw)
+		geotagFile.write(params)
+		geotagFile.close()
+		print(params)
     		print('Camera file path: {0}/{1}'.format(file_path.folder, file_path.name))
-		target = os.path.join('/home/ubuntu/Pictures', file_path.name)
+		target = os.path.join(self.targetPath, file_path.name)
 		print('Copying image to', target)
 		camera_file = gp.check_result(gp.gp_camera_file_get(self.camera, file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL, self.context))
 		gp.check_result(gp.gp_file_save(camera_file, target))
